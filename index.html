@@ -151,6 +151,28 @@
   .vsub:hover{opacity:.85;transform:translateY(-1px);}
   .vsub:disabled{opacity:.4;cursor:not-allowed;transform:none;}
 
+  /* 일정 등록 매트릭스 */
+  .ve-wrap{overflow-x:auto;margin-top:4px;}
+  .ve-table{border-collapse:collapse;width:100%;min-width:560px;}
+  .ve-table th,.ve-table td{padding:0;text-align:center;vertical-align:middle;}
+  .ve-table thead th{padding:8px 4px;font-size:11px;font-weight:600;color:var(--text2);background:var(--surface2);border-bottom:1px solid var(--border);white-space:nowrap;}
+  .ve-table thead th:first-child{text-align:left;padding-left:14px;min-width:130px;}
+  .ve-table thead th.day-sat{color:#5b9bd5;}
+  .ve-table thead th.day-sun{color:var(--danger);}
+  .ve-table tbody tr{border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s;}
+  .ve-table tbody tr:hover{background:rgba(255,255,255,.03);}
+  .ve-cell{width:56px;height:52px;cursor:pointer;position:relative;}
+  .ve-cell-inner{width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+  .ve-on{width:30px;height:30px;border-radius:8px;background:rgba(0,212,170,.15);border:2px solid rgba(0,212,170,.5);display:flex;align-items:center;justify-content:center;color:var(--accent3);font-size:15px;transition:all .15s;}
+  .ve-off{width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:11px;transition:all .15s;}
+  .ve-cell:hover .ve-on,.ve-cell:hover .ve-off{transform:scale(1.12);}
+  .ve-save-cell{width:64px;padding:0 6px;}
+  .ve-save-btn{padding:5px 10px;border-radius:6px;border:1px solid var(--accent3);background:transparent;color:var(--accent3);font-size:11px;font-family:'Noto Sans KR',sans-serif;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .2s;}
+  .ve-save-btn:hover{background:var(--accent3);color:#0a0c12;}
+  .ve-save-btn:disabled{opacity:.35;cursor:not-allowed;}
+  .ve-saved{color:var(--accent3);font-size:11px;}
+  .ve-member-cell{display:flex;align-items:center;gap:8px;padding:10px 14px;text-align:left;}
+
   /* TAB3 - 파티별 일정 */
   .ps-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px;}
   .party-pills{display:flex;gap:6px;flex-wrap:wrap;}
@@ -352,20 +374,15 @@
     </div>
     <div class="sgrid" id="sg"></div>
     <div class="vform">
-      <h3>📅 내 일정 등록</h3>
-      <p>가능한 날짜를 선택 후 저장하면 시트에 바로 기록돼요.</p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <div>
-          <div style="font-size:11px;color:var(--text3);margin-bottom:5px">닉네임</div>
-          <select class="fi" id="vn"><option value="">선택...</option></select>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--text3);margin-bottom:5px">메모 (선택)</div>
-          <input type="text" class="fi" id="vm" placeholder="ex) 22시 이후만 가능" style="width:200px;">
+          <h3>📅 일정 등록</h3>
+          <p style="margin:0">셀을 클릭해 가능/불가를 토글하고 저장하세요.</p>
         </div>
       </div>
-      <div class="dchips" id="dchips"></div>
-      <button class="vsub" id="vsub" onclick="submitVote()">✓ 일정 저장</button>
+      <div class="ve-wrap">
+        <table class="ve-table" id="veTable"></table>
+      </div>
     </div>
   </div>
   <!-- TAB 3 - 파티별 일정 -->
@@ -427,7 +444,9 @@
 
 <script>
 // ── STATE ──
-let GAS = '', members = [], votes = [], parties = [], weekOff = 0, psWeekOff = 0, rcWeekOff = 0, selParty = 0, selDays = new Set(), isDemo = false;
+const GAS = 'https://script.google.com/macros/s/AKfycbylOV_dKWNqzMQhEkPx4g5fK_yT5JQJ7ZFx-Cczvc-VzvMlxl25EpCxswjVDZ8n2d_E/exec';
+let isDemo = false;
+let members = [], votes = [], parties = [], weekOff = 0, psWeekOff = 0, rcWeekOff = 0, selParty = 0, selDays = new Set();
 // raidCalendar: { 'YYYY-MM-DD': [ { partyIdx, time } ] }
 let raidCalendar = {};
 const DN = ['수','목','금','토','일','월','화'];
@@ -478,7 +497,6 @@ async function get(action) {
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const d = await r.json(); if (d.error) throw new Error(d.error); return d;
 }
-// 저장도 GET으로 처리 (GAS CORS 제약 때문에 POST 불가)
 async function save(action, data) {
   const encoded = encodeURIComponent(JSON.stringify(data));
   const r = await fetch(`${GAS}?action=${action}&data=${encoded}`);
@@ -488,7 +506,6 @@ async function save(action, data) {
 
 async function loadAll() {
   if (isDemo) { afterLoad(); return; }
-  if (!GAS) { toast('GAS URL을 먼저 설정해주세요','error'); return; }
   const btn = document.getElementById('syncBtn');
   btn.classList.add('spinning');
   document.getElementById('mg').innerHTML = '<div class="estate"><div class="spin"></div><div class="etxt">시트 데이터 로딩 중...</div></div>';
@@ -584,11 +601,17 @@ function weekDays(){
   return Array.from({length:7},(_,i)=>{const d=new Date(m);d.setDate(m.getDate()+i);return d;});
 }
 function wKey(days){const d=days[0];return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
-function changeWeek(d){weekOff+=d;selDays.clear();renderSchedule();}
+function changeWeek(d){weekOff+=d;renderSchedule();}
+
+// 멤버별 편집 상태: { [nick]: boolean[7] }
+let veState = {};
+
 function renderSchedule(){
   const days=weekDays(), wk=wKey(days), total=Math.max(members.length,1);
   document.getElementById('wlabel').textContent=`${days[0].getMonth()+1}/${days[0].getDate()} ~ ${days[6].getMonth()+1}/${days[6].getDate()}`;
   const wv=votes.filter(v=>v['기준주차']===wk);
+
+  // 주간 현황 그리드
   document.getElementById('sg').innerHTML=days.map((d,i)=>{
     const voters=wv.filter(v=>v[DN[i]]==='✓').map(v=>v['닉네임']);
     const pct=Math.round(voters.length/total*100);
@@ -597,29 +620,120 @@ function renderSchedule(){
       <div class="dcnt">${voters.length}명</div><div class="vbar-w"><div class="vbar" style="width:${pct}%"></div></div>
       <div class="vlist">${voters.map(n=>`<span class="vchip2">${n}</span>`).join('')}</div></div>`;
   }).join('');
-  document.getElementById('dchips').innerHTML=days.map((d,i)=>`
-    <button class="dchip ${selDays.has(i)?'sel':''}" style="${d.getDay()===6?'color:#5b9bd5':d.getDay()===0?'color:var(--danger)':''}" onclick="togDay(${i},this)">${DN[i]} ${d.getMonth()+1}/${d.getDate()}</button>`).join('');
+
+  // 편집 매트릭스 초기화 (현재 투표 데이터 기반)
+  veState = {};
+  members.forEach(m => {
+    const v = wv.find(v => v['닉네임'] === m.name);
+    veState[m.name] = DN.map(d => v ? v[d]==='✓' : false);
+  });
+
+  renderVeTable(days);
 }
-function togDay(i,el){selDays.has(i)?selDays.delete(i):selDays.add(i);el.classList.toggle('sel');}
-function buildVoteNicks(){
-  document.getElementById('vn').innerHTML='<option value="">선택...</option>'+members.map(m=>`<option value="${m.name}">${m.name}</option>`).join('');
+
+function renderVeTable(days) {
+  const table = document.getElementById('veTable');
+  if (!table) return;
+  if (!members.length) { table.innerHTML = ''; return; }
+
+  const dayHeaders = days.map((d,i) => {
+    const sat=d.getDay()===6, sun=d.getDay()===0;
+    return `<th class="${sat?'day-sat':sun?'day-sun':''}" style="min-width:52px">
+      <div>${DN[i]}</div>
+      <div style="font-size:10px;color:var(--text3);font-weight:400">${d.getMonth()+1}/${d.getDate()}</div>
+    </th>`;
+  }).join('');
+
+  const memberRows = members.map(m => {
+    const r = role(m.chars[0]?.class || '');
+    const cells = DN.map((_, i) => {
+      const on = veState[m.name]?.[i] ?? false;
+      return `<td class="ve-cell" onclick="veToggle('${m.name}',${i})">
+        <div class="ve-cell-inner">
+          <div class="${on?'ve-on':'ve-off'}">${on?'✓':'✕'}</div>
+        </div>
+      </td>`;
+    }).join('');
+
+    return `<tr>
+      <td>
+        <div class="ve-member-cell">
+          <div class="ps-avatar" style="background:${roleBg(r)}">${roleIcon(r)}</div>
+          <div class="ps-minfo">
+            <div class="ps-mname">${m.name}</div>
+            <div class="ps-muser">${m.chars[0]?.class || ''}</div>
+          </div>
+        </div>
+      </td>
+      ${cells}
+      <td class="ve-save-cell">
+        <button class="ve-save-btn" id="vebtn-${m.name}" onclick="submitVoteFor('${m.name}')">저장</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th style="text-align:left;padding-left:14px">멤버</th>
+        ${dayHeaders}
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>${memberRows}</tbody>`;
 }
-async function submitVote(){
-  const nick=document.getElementById('vn').value, memo=document.getElementById('vm').value.trim();
-  if(!nick){toast('닉네임을 선택해주세요','error');return;}
-  if(!selDays.size){toast('날짜를 1개 이상 선택해주세요','error');return;}
-  const days=weekDays(), wk=wKey(days), arr=Array.from({length:7},(_,i)=>selDays.has(i));
-  const row={'닉네임':nick,'기준주차':wk,memo};
-  DN.forEach((d,i)=>{row[d]=arr[i]?'✓':'';});
-  const ex=votes.find(v=>v['닉네임']===nick&&v['기준주차']===wk);
-  if(ex)Object.assign(ex,row);else votes.push(row);
-  renderSchedule();toast(`${nick}님 일정 반영됐어요`,'success');
+
+function veToggle(nick, dayIdx) {
+  if (!veState[nick]) veState[nick] = Array(7).fill(false);
+  veState[nick][dayIdx] = !veState[nick][dayIdx];
+  // 해당 셀만 업데이트
+  const days = weekDays();
+  const td = document.querySelectorAll(`#veTable tbody tr`);
+  members.forEach((m, mi) => {
+    if (m.name !== nick) return;
+    const cells = td[mi]?.querySelectorAll('.ve-cell');
+    if (!cells) return;
+    DN.forEach((_, i) => {
+      const on = veState[nick][i];
+      const inner = cells[i]?.querySelector('.ve-cell-inner');
+      if (inner) inner.innerHTML = `<div class="${on?'ve-on':'ve-off'}">${on?'✓':'✕'}</div>`;
+    });
+  });
+}
+
+async function submitVoteFor(nick) {
+  const days = weekDays(), wk = wKey(days);
+  const arr = veState[nick] || Array(7).fill(false);
+  const row = {'닉네임':nick,'기준주차':wk};
+  DN.forEach((d,i) => { row[d] = arr[i]?'✓':''; });
+  const ex = votes.find(v=>v['닉네임']===nick&&v['기준주차']===wk);
+  if(ex) Object.assign(ex,row); else votes.push(row);
+  // 현황 그리드 즉시 갱신
+  const wv=votes.filter(v=>v['기준주차']===wk);
+  const total=Math.max(members.length,1);
+  document.getElementById('sg').innerHTML=days.map((d,i)=>{
+    const voters=wv.filter(v=>v[DN[i]]==='✓').map(v=>v['닉네임']);
+    const pct=Math.round(voters.length/total*100);
+    const sat=d.getDay()===6,sun=d.getDay()===0;
+    return `<div class="dcol"><div class="dhead"><div class="dname ${sat?'sat':''} ${sun?'sun':''}">${DN[i]}</div><div class="ddate">${d.getMonth()+1}/${d.getDate()}</div></div>
+      <div class="dcnt">${voters.length}명</div><div class="vbar-w"><div class="vbar" style="width:${pct}%"></div></div>
+      <div class="vlist">${voters.map(n=>`<span class="vchip2">${n}</span>`).join('')}</div></div>`;
+  }).join('');
   if(isDemo){toast('데모 모드: 시트엔 저장 안 돼요','warn');return;}
-  const btn=document.getElementById('vsub');btn.disabled=true;
-  try{await save('saveVote',{nick,weekKey:wk,days:arr,memo});toast('시트에 저장 완료 ✓','success');}
-  catch(e){toast('시트 저장 실패: '+e.message,'error');}
-  finally{btn.disabled=false;}
+  const btn=document.getElementById(`vebtn-${nick}`);
+  if(btn){btn.disabled=true;btn.textContent='저장중...';}
+  try{
+    await save('saveVote',{nick,weekKey:wk,days:arr,memo:''});
+    toast(`${nick} 저장 완료 ✓`,'success');
+    if(btn){btn.textContent='저장됨 ✓';setTimeout(()=>{if(btn)btn.textContent='저장';},2000);}
+  } catch(e){
+    toast('저장 실패: '+e.message,'error');
+    if(btn)btn.textContent='저장';
+  } finally{if(btn)btn.disabled=false;}
 }
+
+function buildVoteNicks(){ /* 매트릭스 방식으로 변경됨 - 호환성 유지 */ }
+function submitVote(){ /* 사용 안 함 */ }
 
 // ── TAB3 - 파티별 일정 ──
 const PS_COLORS = ['#4f7cff','#00d4aa','#f5c842','#ff6b35','#ff4466','#9b59b6'];
@@ -1023,8 +1137,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   buildPartyPills();
   renderPartySchedule();
   renderRaidCalendar();
-  const saved=localStorage.getItem('lorail_gas');
-  if(saved){GAS=saved;document.getElementById('cfgUrl').value=saved;document.getElementById('overlay').classList.add('hidden');loadAll();}
+  document.getElementById('overlay').classList.add('hidden');
+  loadAll();
 });
 </script>
 </body>
