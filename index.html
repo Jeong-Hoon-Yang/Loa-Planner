@@ -505,7 +505,7 @@
 
 <script>
 // ── STATE ──
-const GAS = 'https://script.google.com/macros/s/AKfycbxpIWpuJ1s18oQm6fTgFGPbA2YpPRjgCw_74uqJzWV8UQ72MyEpe50-vAQWxmRVcMhu7Q/exec';
+const GAS = 'https://script.google.com/macros/s/AKfycbylOV_dKWNqzMQhEkPx4g5fK_yT5JQJ7ZFx-Cczvc-VzvMlxl25EpCxswjVDZ8n2d_E/exec';
 let isDemo = false;
 let members = [], votes = [], parties = [], weekOff = 0, psWeekOff = 0, rcWeekOff = 0, selParty = 0, selDays = new Set();
 // raidCalendar: { 'YYYY-MM-DD': [ { partyIdx, time } ] }
@@ -1057,36 +1057,46 @@ function renderPartySchedule() {
     uvEl.style.display = 'none';
   }
 
-  // 레이드 캘린더 날짜 선택 UI 렌더링
+  // 레이드 캘린더 날짜 선택 UI 렌더링 (파티 변경 or 주차 변경 시 raidCalendar 기준으로 초기화)
+  initPsRaidSelDays();
   renderPsRaidDays(days);
 }
 
-// 선택된 레이드 날짜 상태: Set of dateKey
+// 선택된 레이드 날짜 상태: Set of dateKey (ON = 이 파티 등록)
 let psRaidSelDays = new Set();
 
 function renderPsRaidDays(days) {
   const party = parties[selParty];
   document.getElementById('psRaidPartyName').textContent = party?.name || '';
 
+  // raidCalendar 기준으로 현재 파티 등록 날짜를 psRaidSelDays에 반영 (초기 로드 시)
+  // 단, 사용자가 직접 토글한 경우는 psRaidSelDays 그대로 유지하므로
+  // renderPartySchedule 호출 시에만 초기화 (initPsRaidSelDays 별도 처리)
   const grid = document.getElementById('psRaidDays');
-  const DN_SAT_SUN = [false, false, false, true, true, false, false]; // 수목금토일월화
 
   grid.innerHTML = days.map((d, i) => {
     const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const isSel = psRaidSelDays.has(dateKey);
-    // 이미 이 파티가 해당 날짜 캘린더에 등록돼 있는지
-    const already = (raidCalendar[dateKey] || []).some(e => e.partyIdx === selParty);
     const sat = d.getDay() === 6, sun = d.getDay() === 0;
     const dayColor = sat ? 'color:#5b9bd5' : sun ? 'color:var(--danger)' : '';
 
-    return `<button class="ps-raid-day ${isSel?'sel':''} ${already?'already':''}"
+    return `<button class="ps-raid-day ${isSel ? 'sel' : ''}"
       data-datekey="${dateKey}"
       onclick="togglePsRaidDay('${dateKey}', this)">
       <span class="ps-raid-day-name" style="${dayColor}">${DN[i]}</span>
       <span class="ps-raid-day-date" style="${dayColor}">${d.getMonth()+1}/${d.getDate()}</span>
-      ${already ? `<span class="ps-raid-day-badge">등록됨</span>` : ''}
     </button>`;
   }).join('');
+}
+
+// raidCalendar 기준으로 현재 파티 등록 날짜로 psRaidSelDays 초기화
+function initPsRaidSelDays() {
+  psRaidSelDays = new Set();
+  Object.entries(raidCalendar).forEach(([dateKey, entries]) => {
+    if (entries.some(e => e.partyIdx === selParty)) {
+      psRaidSelDays.add(dateKey);
+    }
+  });
 }
 
 function togglePsRaidDay(dateKey, el) {
@@ -1100,18 +1110,26 @@ function togglePsRaidDay(dateKey, el) {
 }
 
 async function savePsRaidDays() {
-  if (!psRaidSelDays.size) { toast('날짜를 1개 이상 선택하세요', 'error'); return; }
   const btn = document.getElementById('psRaidSave');
   btn.disabled = true; btn.textContent = '저장 중...';
 
   const days = psWeekDays();
+  // 현재 주차의 모든 날짜에 대해 ON/OFF 판단
   let ok = 0, fail = 0;
 
-  for (const dateKey of psRaidSelDays) {
-    // 기존 해당 날짜 entries에 현재 파티 추가 (다른 파티는 유지)
-    const existing = (raidCalendar[dateKey] || []).filter(e => e.partyIdx !== selParty);
-    const entries = [...existing, { partyIdx: selParty }];
-    raidCalendar[dateKey] = entries;
+  for (const d of days) {
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const wasRegistered = (raidCalendar[dateKey] || []).some(e => e.partyIdx === selParty);
+    const isNowOn = psRaidSelDays.has(dateKey);
+
+    // 변경된 날짜만 처리
+    if (wasRegistered === isNowOn) continue;
+
+    const otherEntries = (raidCalendar[dateKey] || []).filter(e => e.partyIdx !== selParty);
+    const entries = isNowOn ? [...otherEntries, { partyIdx: selParty }] : otherEntries;
+
+    if (entries.length) raidCalendar[dateKey] = entries;
+    else delete raidCalendar[dateKey];
 
     if (!isDemo) {
       try {
@@ -1121,16 +1139,14 @@ async function savePsRaidDays() {
     }
   }
 
-  // 로컬 UI 갱신
   renderPsRaidDays(days);
   renderRaidCalendar();
 
   btn.disabled = false; btn.textContent = '캘린더에 저장';
   if (isDemo) { toast('데모 모드: 시트엔 저장 안 돼요', 'warn'); return; }
+  if (ok === 0 && fail === 0) { toast('변경 사항이 없어요', 'warn'); return; }
   if (fail === 0) toast(`${ok}일 레이드 캘린더 저장 완료 ✓`, 'success');
   else toast(`${ok}일 저장, ${fail}일 실패`, 'error');
-  psRaidSelDays.clear();
-  renderPsRaidDays(days);
 }
 
 // ── TAB4 - 레이드 캘린더 ──
@@ -1270,6 +1286,9 @@ function saveRcDay() {
 
   document.getElementById('rcModalOverlay').classList.add('hidden');
   renderRaidCalendar();
+  // 파티별 일정 탭의 날짜 선택 UI도 raidCalendar 변경 반영
+  initPsRaidSelDays();
+  renderPsRaidDays(psWeekDays());
 
   // GAS 저장 (연결된 경우) + localStorage 폴백
   saveRcRemote(rcEditDate, entries);
