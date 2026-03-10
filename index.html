@@ -172,6 +172,22 @@
   .ve-save-btn:disabled{opacity:.35;cursor:not-allowed;}
   .ve-saved{color:var(--accent3);font-size:11px;}
   .ve-member-cell{display:flex;align-items:center;gap:8px;padding:10px 14px;text-align:left;}
+  .ve-all-save{width:100%;margin-top:14px;padding:11px;background:var(--accent3);border:none;border-radius:8px;color:#0a0c12;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:opacity .2s,transform .1s;}
+  .ve-all-save:hover{opacity:.85;transform:translateY(-1px);}
+  .ve-all-save:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+
+  /* 일정 파싱 입력 */
+  .vparse-box{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
+  .vparse-box h3{font-size:14px;font-weight:700;margin-bottom:4px;}
+  .vparse-box p{font-size:12px;color:var(--text2);margin-bottom:12px;}
+  .vparse-hint{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:10px;text-align:center;}
+  .vparse-hint-day{font-size:10px;font-weight:700;color:var(--text3);padding:4px 2px;background:rgba(255,255,255,.04);border-radius:4px;}
+  .vparse-textarea{width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:12px;line-height:1.8;resize:vertical;min-height:130px;outline:none;transition:border-color .2s;}
+  .vparse-textarea:focus{border-color:var(--accent);}
+  .vparse-textarea::placeholder{color:var(--text3);}
+  .vparse-btn{margin-top:10px;padding:8px 20px;border-radius:7px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;}
+  .vparse-btn:hover{background:var(--accent);color:white;}
+  .vparse-result{margin-top:8px;font-size:11px;color:var(--accent3);min-height:16px;}
 
   /* TAB3 - 파티별 일정 */
   .ps-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px;}
@@ -373,6 +389,27 @@
       </div>
     </div>
     <div class="sgrid" id="sg"></div>
+    <!-- 일정 파싱 입력 -->
+    <div class="vparse-box">
+      <h3>📋 일정 텍스트로 불러오기</h3>
+      <p>한 줄 = 한 요일 (수→목→금→토→일→월→화 순). 쉼표로 이름 구분, 이름은 캐릭터 현황 A열 기준.</p>
+      <div class="vparse-hint">
+        <div class="vparse-hint-day">수</div><div class="vparse-hint-day">목</div><div class="vparse-hint-day">금</div>
+        <div class="vparse-hint-day" style="color:#5b9bd5">토</div><div class="vparse-hint-day" style="color:var(--danger)">일</div>
+        <div class="vparse-hint-day">월</div><div class="vparse-hint-day">화</div>
+      </div>
+      <textarea class="vparse-textarea" id="vparseInput" placeholder="기홍, 권권, 세종, 수연, 정훈, 동건
+기홍, 권권, 정훈, 동건
+기홍, 권권, 대영, 수연, 정훈, 민상
+기홍, 권권, 대영, 수연, 정훈, 민상
+기홍, 권권, 대영, 수연, 정훈, 민상
+기홍, 권권, 세종, 대영, 수연, 정훈, 동건
+기홍, 권권, 세종, 대영, 수연, 정훈, 동건, 민상"></textarea>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:10px;">
+        <button class="vparse-btn" onclick="parseScheduleText()">↩ 매트릭스에 적용</button>
+        <span class="vparse-result" id="vparseResult"></span>
+      </div>
+    </div>
     <div class="vform">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <div>
@@ -383,6 +420,7 @@
       <div class="ve-wrap">
         <table class="ve-table" id="veTable"></table>
       </div>
+      <button class="ve-all-save" id="veAllSave" onclick="saveAllVotes()">✓ 전체 저장</button>
     </div>
   </div>
   <!-- TAB 3 - 파티별 일정 -->
@@ -444,7 +482,7 @@
 
 <script>
 // ── STATE ──
-const GAS = 'https://script.google.com/macros/s/AKfycbylOV_dKWNqzMQhEkPx4g5fK_yT5JQJ7ZFx-Cczvc-VzvMlxl25EpCxswjVDZ8n2d_E/exec';
+const GAS = 'https://script.google.com/macros/s/AKfycbxpIWpuJ1s18oQm6fTgFGPbA2YpPRjgCw_74uqJzWV8UQ72MyEpe50-vAQWxmRVcMhu7Q/exec';
 let isDemo = false;
 let members = [], votes = [], parties = [], weekOff = 0, psWeekOff = 0, rcWeekOff = 0, selParty = 0, selDays = new Set();
 // raidCalendar: { 'YYYY-MM-DD': [ { partyIdx, time } ] }
@@ -492,16 +530,33 @@ function loadDemo() {
 }
 
 // ── API ──
+// ── API (JSONP - GAS CORS 우회) ──
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cbName = '_gasCallback_' + Date.now() + '_' + Math.floor(Math.random()*10000);
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      cleanup(); reject(new Error('요청 시간 초과 (15s)'));
+    }, 15000);
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = (data) => { cleanup(); resolve(data); };
+    script.onerror = () => { cleanup(); reject(new Error('네트워크 오류')); };
+    script.src = url + (url.includes('?') ? '&' : '?') + `callback=${cbName}`;
+    document.head.appendChild(script);
+  });
+}
 async function get(action) {
-  const r = await fetch(`${GAS}?action=${action}`);
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const d = await r.json(); if (d.error) throw new Error(d.error); return d;
+  const d = await jsonp(`${GAS}?action=${action}`);
+  if (d.error) throw new Error(d.error); return d;
 }
 async function save(action, data) {
   const encoded = encodeURIComponent(JSON.stringify(data));
-  const r = await fetch(`${GAS}?action=${action}&data=${encoded}`);
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const d = await r.json(); if (d.error) throw new Error(d.error); return d;
+  const d = await jsonp(`${GAS}?action=${action}&data=${encoded}`);
+  if (d.error) throw new Error(d.error); return d;
 }
 
 async function loadAll() {
@@ -710,6 +765,97 @@ function refreshSgrid() {
 }
 
 function veToggle(){ /* 이벤트 위임 방식으로 대체됨 */ }
+
+// ── 일정 텍스트 파싱 ──
+function parseScheduleText() {
+  const raw = document.getElementById('vparseInput').value.trim();
+  const result = document.getElementById('vparseResult');
+  if (!raw) { result.textContent = '입력값이 없어요'; result.style.color='var(--danger)'; return; }
+  if (!members.length) { result.textContent = '멤버 데이터를 먼저 불러오세요'; result.style.color='var(--danger)'; return; }
+
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length > 7) { result.textContent = `7줄까지만 입력 가능해요 (현재 ${lines.length}줄)`; result.style.color='var(--danger)'; return; }
+
+  // 멤버 이름 → 인덱스 매핑 (대소문자/공백 무시)
+  const memberMap = {}; // 정규화된 이름 → members 인덱스
+  members.forEach((m, i) => {
+    memberMap[m.name.trim().toLowerCase()] = i;
+  });
+
+  // 파싱: 줄번호 = 요일 인덱스 (0=수,1=목,...,6=화)
+  // veState 초기화: 모든 멤버 전체 false로 리셋
+  members.forEach(m => { veState[m.name] = Array(7).fill(false); });
+
+  const matched = new Set(), unmatched = new Set();
+  lines.forEach((line, di) => {
+    const names = line.split(',').map(n => n.trim()).filter(Boolean);
+    names.forEach(name => {
+      const key = name.toLowerCase();
+      if (memberMap[key] !== undefined) {
+        const nick = members[memberMap[key]].name;
+        veState[nick][di] = true;
+        matched.add(nick);
+      } else {
+        unmatched.add(name);
+      }
+    });
+  });
+
+  // 매트릭스 재렌더링
+  renderVeTable(weekDays());
+  refreshSgrid();
+
+  const unmatchedArr = [...unmatched];
+  if (unmatchedArr.length) {
+    result.textContent = `✓ 적용됨 | 매칭 안 된 이름: ${unmatchedArr.join(', ')}`;
+    result.style.color = 'var(--gold)';
+  } else {
+    result.textContent = `✓ ${matched.size}명 적용 완료`;
+    result.style.color = 'var(--accent3)';
+  }
+}
+
+// ── 전체 저장 ──
+async function saveAllVotes() {
+  if (!members.length) { toast('멤버 데이터가 없어요', 'error'); return; }
+  const btn = document.getElementById('veAllSave');
+  btn.disabled = true; btn.textContent = '저장 중...';
+
+  const days = weekDays(), wk = wKey(days);
+  const targets = members.filter(m => veState[m.name]);
+
+  // 로컬 votes 업데이트
+  targets.forEach(m => {
+    const arr = veState[m.name] || Array(7).fill(false);
+    const row = {'닉네임': m.name, '기준주차': wk};
+    DN.forEach((d, i) => { row[d] = arr[i] ? '✓' : ''; });
+    const ex = votes.find(v => v['닉네임'] === m.name && v['기준주차'] === wk);
+    if (ex) Object.assign(ex, row); else votes.push(row);
+  });
+  refreshSgrid();
+
+  if (isDemo) {
+    toast('데모 모드: 시트엔 저장 안 돼요', 'warn');
+    btn.disabled = false; btn.textContent = '✓ 전체 저장';
+    return;
+  }
+
+  // 순차 저장 (GAS 과부하 방지)
+  let ok = 0, fail = 0;
+  for (const m of targets) {
+    const arr = veState[m.name] || Array(7).fill(false);
+    try {
+      await save('saveVote', {nick: m.name, weekKey: wk, days: arr, memo: ''});
+      ok++;
+    } catch(e) {
+      fail++;
+    }
+  }
+
+  btn.disabled = false; btn.textContent = '✓ 전체 저장';
+  if (fail === 0) toast(`${ok}명 전체 저장 완료 ✓`, 'success');
+  else toast(`${ok}명 저장 완료, ${fail}명 실패`, 'error');
+}
 
 async function submitVoteFor(nick, btn) {
   const days = weekDays(), wk = wKey(days);
