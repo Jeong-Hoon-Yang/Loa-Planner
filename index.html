@@ -482,7 +482,7 @@
 
 <script>
 // ── STATE ──
-const GAS = 'https://script.google.com/macros/s/AKfycbxpIWpuJ1s18oQm6fTgFGPbA2YpPRjgCw_74uqJzWV8UQ72MyEpe50-vAQWxmRVcMhu7Q/exec';
+const GAS = 'https://script.google.com/macros/s/AKfycbylOV_dKWNqzMQhEkPx4g5fK_yT5JQJ7ZFx-Cczvc-VzvMlxl25EpCxswjVDZ8n2d_E/exec';
 let isDemo = false;
 let members = [], votes = [], parties = [], weekOff = 0, psWeekOff = 0, rcWeekOff = 0, selParty = 0, selDays = new Set();
 // raidCalendar: { 'YYYY-MM-DD': [ { partyIdx, time } ] }
@@ -661,6 +661,21 @@ function changeWeek(d){weekOff+=d;renderSchedule();}
 // 멤버별 편집 상태: { [nick]: boolean[7] }
 let veState = {};
 
+// 닉네임 → 표시 이름 매핑 (일정 투표 탭 전용)
+const NICK_TO_NAME = {
+  '꽃닢봄':          '수연',
+  '굥격슈':          '기홍',
+  '낳인가요낫인가요': '대영',
+  '권권a':           '권권',
+  '통통헤살':        '정훈',
+  '밍상쿤':          '민상',
+  '아브르테':        '세종',
+  '탱커형':          '동건',
+};
+// 이름 → 닉네임 역매핑 (파싱용)
+const NAME_TO_NICK = Object.fromEntries(Object.entries(NICK_TO_NAME).map(([k,v])=>[v.toLowerCase(),k]));
+const nickToName = nick => NICK_TO_NAME[nick] || nick;
+
 function renderSchedule(){
   const days=weekDays(), wk=wKey(days);
   document.getElementById('wlabel').textContent=`${days[0].getMonth()+1}/${days[0].getDate()} ~ ${days[6].getMonth()+1}/${days[6].getDate()}`;
@@ -706,7 +721,7 @@ function renderVeTable(days) {
         <div class="ve-member-cell">
           <div class="ps-avatar" style="background:${roleBg(r)}">${roleIcon(r)}</div>
           <div class="ps-minfo">
-            <div class="ps-mname">${m.name}</div>
+            <div class="ps-mname">${nickToName(m.name)}</div>
             <div class="ps-muser">${m.chars[0]?.class || ''}</div>
           </div>
         </div>
@@ -755,7 +770,7 @@ function refreshSgrid() {
   const days = weekDays(), wk = wKey(days), total = Math.max(members.length, 1);
   const wv = votes.filter(v => v['기준주차'] === wk);
   document.getElementById('sg').innerHTML = days.map((d,i) => {
-    const voters = wv.filter(v => v[DN[i]] === '✓').map(v => v['닉네임']);
+    const voters = wv.filter(v => v[DN[i]] === '✓').map(v => nickToName(v['닉네임']));
     const pct = Math.round(voters.length / total * 100);
     const sat = d.getDay()===6, sun = d.getDay()===0;
     return `<div class="dcol"><div class="dhead"><div class="dname ${sat?'sat':''} ${sun?'sun':''}">${DN[i]}</div><div class="ddate">${d.getMonth()+1}/${d.getDate()}</div></div>
@@ -777,9 +792,12 @@ function parseScheduleText() {
   if (lines.length > 7) { result.textContent = `7줄까지만 입력 가능해요 (현재 ${lines.length}줄)`; result.style.color='var(--danger)'; return; }
 
   // 멤버 이름 → 인덱스 매핑 (대소문자/공백 무시)
-  const memberMap = {}; // 정규화된 이름 → members 인덱스
+  const memberMap = {}; // 정규화된 닉네임 또는 이름 → members 인덱스
   members.forEach((m, i) => {
     memberMap[m.name.trim().toLowerCase()] = i;
+    // 이름(표시명)으로도 매핑
+    const displayName = nickToName(m.name).toLowerCase();
+    if (displayName !== m.name.toLowerCase()) memberMap[displayName] = i;
   });
 
   // 파싱: 줄번호 = 요일 인덱스 (0=수,1=목,...,6=화)
