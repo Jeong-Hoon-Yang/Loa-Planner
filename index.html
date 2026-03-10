@@ -503,6 +503,11 @@ async function loadAll() {
     const [cd, vd, pd, rcd] = await Promise.all([get('getChars'), get('getVotes'), get('getParties'), get('getRaidCalendar')]);
     members = cd.members || []; votes = vd.votes || []; parties = pd.parties || [];
     raidCalendar = rcd.calendar || {};
+    // ── DEBUG ──
+    console.log('[DEBUG] votes raw:', JSON.stringify(vd.votes?.slice(0,3)));
+    console.log('[DEBUG] calendar raw:', JSON.stringify(rcd.calendar));
+    console.log('[DEBUG] wKey now:', wKey(weekDays()));
+    // ── /DEBUG ──
     setBadge('connected');
     document.getElementById('lastSync').textContent = '갱신: '+new Date().toLocaleTimeString('ko-KR');
     afterLoad(); toast('데이터 로드 완료','success');
@@ -1020,7 +1025,7 @@ function demoParties(){return [
     {char:'아사르테', class:'기상술사'},
     {char:'굥대장',   class:'버서커'},
     // G열 4명
-    {char:'기사헤살',     class:'홀리나이트'},
+    {char:'기사헤',     class:'홀리나이트'},
     {char:'권권T',    class:'소울이터'},
     {char:'손님은왕짐은황제', class:'아르카나'},
     {char:'밍상쿤',   class:'블레이드'},
