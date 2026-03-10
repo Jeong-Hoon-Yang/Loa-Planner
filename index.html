@@ -237,6 +237,22 @@
   .ps-week-nav button:hover{border-color:var(--accent);color:var(--accent);}
   .ps-week-label{font-size:13px;font-weight:500;color:var(--text);}
 
+  /* 레이드 날짜 선택 */
+  .ps-raid-box{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-top:18px;}
+  .ps-raid-box-title{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+  .ps-raid-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:12px;}
+  .ps-raid-day{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:all .18s;background:transparent;font-family:'Noto Sans KR',sans-serif;}
+  .ps-raid-day:hover{border-color:rgba(255,255,255,.2);}
+  .ps-raid-day.sel{background:rgba(79,124,255,.12);border-color:var(--accent);}
+  .ps-raid-day.already{background:rgba(0,212,170,.08);border-color:rgba(0,212,170,.35);}
+  .ps-raid-day.sel.already{background:rgba(79,124,255,.18);border-color:var(--accent);}
+  .ps-raid-day-name{font-size:11px;font-weight:700;}
+  .ps-raid-day-date{font-size:10px;color:var(--text3);}
+  .ps-raid-day-badge{font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(0,212,170,.15);color:var(--accent3);font-weight:700;}
+  .ps-raid-save{width:100%;padding:10px;background:var(--accent);border:none;border-radius:7px;color:white;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:12px;cursor:pointer;transition:opacity .2s;}
+  .ps-raid-save:hover{opacity:.85;}
+  .ps-raid-save:disabled{opacity:.4;cursor:not-allowed;}
+
   /* 미등록 배지 */
   .unvoted-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;}
   .unvoted-chip{padding:4px 10px;border-radius:6px;font-size:11px;background:rgba(255,68,102,.1);color:var(--danger);border:1px solid rgba(255,68,102,.2);}
@@ -447,6 +463,13 @@
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px;letter-spacing:.5px">⚠ 일정 미등록 멤버</div>
       <div class="unvoted-list" id="psUnvotedList"></div>
     </div>
+
+    <!-- 레이드 캘린더 날짜 선택 -->
+    <div class="ps-raid-box">
+      <div class="ps-raid-box-title">📆 레이드 캘린더 등록 — 현재 파티: <span id="psRaidPartyName" style="color:var(--accent)"></span></div>
+      <div class="ps-raid-days" id="psRaidDays"></div>
+      <button class="ps-raid-save" id="psRaidSave" onclick="savePsRaidDays()">캘린더에 저장</button>
+    </div>
   </div>
   <!-- TAB 4 - 레이드 캘린더 -->
   <div class="panel" id="p4">
@@ -482,7 +505,7 @@
 
 <script>
 // ── STATE ──
-const GAS = 'https://script.google.com/macros/s/AKfycbxpIWpuJ1s18oQm6fTgFGPbA2YpPRjgCw_74uqJzWV8UQ72MyEpe50-vAQWxmRVcMhu7Q/exec';
+const GAS = 'https://script.google.com/macros/s/AKfycbylOV_dKWNqzMQhEkPx4g5fK_yT5JQJ7ZFx-Cczvc-VzvMlxl25EpCxswjVDZ8n2d_E/exec';
 let isDemo = false;
 let members = [], votes = [], parties = [], weekOff = 0, psWeekOff = 0, rcWeekOff = 0, selParty = 0, selDays = new Set();
 // raidCalendar: { 'YYYY-MM-DD': [ { partyIdx, time } ] }
@@ -1033,6 +1056,81 @@ function renderPartySchedule() {
   } else {
     uvEl.style.display = 'none';
   }
+
+  // 레이드 캘린더 날짜 선택 UI 렌더링
+  renderPsRaidDays(days);
+}
+
+// 선택된 레이드 날짜 상태: Set of dateKey
+let psRaidSelDays = new Set();
+
+function renderPsRaidDays(days) {
+  const party = parties[selParty];
+  document.getElementById('psRaidPartyName').textContent = party?.name || '';
+
+  const grid = document.getElementById('psRaidDays');
+  const DN_SAT_SUN = [false, false, false, true, true, false, false]; // 수목금토일월화
+
+  grid.innerHTML = days.map((d, i) => {
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const isSel = psRaidSelDays.has(dateKey);
+    // 이미 이 파티가 해당 날짜 캘린더에 등록돼 있는지
+    const already = (raidCalendar[dateKey] || []).some(e => e.partyIdx === selParty);
+    const sat = d.getDay() === 6, sun = d.getDay() === 0;
+    const dayColor = sat ? 'color:#5b9bd5' : sun ? 'color:var(--danger)' : '';
+
+    return `<button class="ps-raid-day ${isSel?'sel':''} ${already?'already':''}"
+      data-datekey="${dateKey}"
+      onclick="togglePsRaidDay('${dateKey}', this)">
+      <span class="ps-raid-day-name" style="${dayColor}">${DN[i]}</span>
+      <span class="ps-raid-day-date" style="${dayColor}">${d.getMonth()+1}/${d.getDate()}</span>
+      ${already ? `<span class="ps-raid-day-badge">등록됨</span>` : ''}
+    </button>`;
+  }).join('');
+}
+
+function togglePsRaidDay(dateKey, el) {
+  if (psRaidSelDays.has(dateKey)) {
+    psRaidSelDays.delete(dateKey);
+    el.classList.remove('sel');
+  } else {
+    psRaidSelDays.add(dateKey);
+    el.classList.add('sel');
+  }
+}
+
+async function savePsRaidDays() {
+  if (!psRaidSelDays.size) { toast('날짜를 1개 이상 선택하세요', 'error'); return; }
+  const btn = document.getElementById('psRaidSave');
+  btn.disabled = true; btn.textContent = '저장 중...';
+
+  const days = psWeekDays();
+  let ok = 0, fail = 0;
+
+  for (const dateKey of psRaidSelDays) {
+    // 기존 해당 날짜 entries에 현재 파티 추가 (다른 파티는 유지)
+    const existing = (raidCalendar[dateKey] || []).filter(e => e.partyIdx !== selParty);
+    const entries = [...existing, { partyIdx: selParty }];
+    raidCalendar[dateKey] = entries;
+
+    if (!isDemo) {
+      try {
+        await save('saveRaidCalendar', { dateKey, entries });
+        ok++;
+      } catch(e) { fail++; }
+    }
+  }
+
+  // 로컬 UI 갱신
+  renderPsRaidDays(days);
+  renderRaidCalendar();
+
+  btn.disabled = false; btn.textContent = '캘린더에 저장';
+  if (isDemo) { toast('데모 모드: 시트엔 저장 안 돼요', 'warn'); return; }
+  if (fail === 0) toast(`${ok}일 레이드 캘린더 저장 완료 ✓`, 'success');
+  else toast(`${ok}일 저장, ${fail}일 실패`, 'error');
+  psRaidSelDays.clear();
+  renderPsRaidDays(days);
 }
 
 // ── TAB4 - 레이드 캘린더 ──
