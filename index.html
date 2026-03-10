@@ -330,7 +330,7 @@
       <input type="text" class="fi" id="sq" placeholder="닉네임 / 캐릭터명 / 직업 검색..." oninput="renderChars()">
       <select class="fi" id="sc" onchange="renderChars()"><option value="">전체 직업</option></select>
       <select class="fi" id="sr" onchange="renderChars()"><option value="">전체 역할</option><option value="서포터">💚 서포터</option><option value="딜러">⚔️ 딜러</option><option value="탱커">🛡️ 탱커</option></select>
-      <select class="fi" id="si" onchange="renderChars()"><option value="0">전체 아이레</option><option value="1640">1640+</option><option value="1680">1680+</option><option value="1700">1700+</option><option value="1710">1710+</option><option value="1750">1750+</option></select>
+      <select class="fi" id="si" onchange="renderChars()"><option value="0">전체 아이템 레벨</option><option value="1640">1640+</option><option value="1680">1680+</option><option value="1700">1700+</option><option value="1710">1710+</option><option value="1750">1750+</option></select>
     </div>
     <div class="stat-row" id="statRow"></div>
     <div class="mgrid" id="mg"><div class="estate"><div class="etxt">GAS URL을 연결하거나 데모로 시작하세요</div></div></div>
@@ -444,6 +444,16 @@ const role = c => SUPP.has(c)?'서포터':TANK.has(c)?'탱커':'딜러';
 const roleIcon = r => r==='서포터'?'💚':r==='탱커'?'🛡️':'⚔️';
 const roleBg = r => r==='서포터'?'rgba(0,212,170,.15)':r==='탱커'?'rgba(79,124,255,.15)':'rgba(255,107,53,.15)';
 
+// 캐릭명으로 캐릭터 현황 탭에서 아이템 레벨 조회
+function getIlvlByChar(charName) {
+  for (const m of members) {
+    for (const c of m.chars) {
+      if (c.name === charName) return c.ilvl;
+    }
+  }
+  return null;
+}
+
 // ── CONFIG ──
 function saveConfig() {
   const u = document.getElementById('cfgUrl').value.trim();
@@ -536,6 +546,7 @@ function renderParties() {
     const colorCls = PARTY_COLORS[pi] || 'p1color';
     const membersHtml = party.members.map((m, mi) => {
       const r = role(m.class);
+      const ilvl = getIlvlByChar(m.char);
       return `<div class="pm-row ${mi===0?'is-leader':''}">
         <div class="pm-avatar" style="background:${roleBg(r)}">${roleIcon(r)}</div>
         <div class="pm-info">
@@ -543,7 +554,7 @@ function renderParties() {
           <div class="pm-cls ctag ${r}" style="display:inline-block;margin-top:2px">${m.class}</div>
         </div>
         <div class="pm-right">
-          <div class="pm-ilvl">${m.ilvl ? m.ilvl.toFixed(2) : ''}</div>
+          <div class="pm-ilvl">${ilvl ? ilvl.toFixed(2) : ''}</div>
         </div>
       </div>`;
     }).join('');
@@ -665,6 +676,7 @@ function renderPartySchedule() {
     const r = role(m.class);
     const voteRow = voteMap[m.char];
     const isLeader = mi === 0;
+    const ilvl = getIlvlByChar(m.char);
 
     const cells = days.map((_,i) => {
       if (!voteRow) {
@@ -682,7 +694,7 @@ function renderPartySchedule() {
           <div class="ps-avatar" style="background:${roleBg(r)}">${roleIcon(r)}</div>
           <div class="ps-minfo">
             <div class="ps-mname">${m.char}${isLeader?' 👑':''}</div>
-            <div class="ps-muser"><span class="ctag ${r}" style="font-size:9px;padding:1px 5px">${m.class}</span>${m.ilvl ? ` · ${m.ilvl.toFixed(2)}` : ''}</div>
+            <div class="ps-muser"><span class="ctag ${r}" style="font-size:9px;padding:1px 5px">${m.class}</span>${ilvl ? ` · ${ilvl.toFixed(2)}` : ''}</div>
           </div>
         </div>
       </td>
@@ -960,44 +972,46 @@ function demoVotes(){
 }
 function demoParties(){return [
   {name:'1파티', members:[
-    {char:'꽃닢봄',   class:'바드',      ilvl:2451.17},
-    {char:'공대장',   class:'버서커',    ilvl:2523.77},
-    {char:'학원갈시간', class:'블래스터', ilvl:2645.89},
-    {char:'권권H',    class:'건슬링어',  ilvl:2615.38},
+    {char:'꽃닢봄',   class:'바드'},
+    {char:'공대장',   class:'버서커'},
+    {char:'학원갈시간', class:'블래스터'},
+    {char:'권권H',    class:'건슬링어'},
   ]},
   {name:'2파티', members:[
-    {char:'끼리봄',   class:'발키리',    ilvl:2266.55},
-    {char:'공대장',   class:'버서커',    ilvl:2523.77},
-    {char:'아르게테', class:'건슬링어',  ilvl:2370.00},
-    {char:'아르게태', class:'아르케타입',ilvl:2370.00},
+    {char:'끼리봄',   class:'발키리'},
+    {char:'굥격슈',   class:'브레이커'},
+    {char:'손님은왕짐은황제', class:'아르카나'},
+    {char:'권권C',    class:'서머너'},
   ]},
   {name:'3파티', members:[
-    {char:'꽃닢붐',   class:'바드',      ilvl:2482.44},
-    {char:'님상',     class:'호크아이',  ilvl:1981.54},
-    {char:'권권K',    class:'기상술사',  ilvl:2899.81},
-    {char:'아르게테', class:'건슬링어',  ilvl:2425.36},
+    {char:'꽃닢붐',   class:'바드'},
+    {char:'님상',     class:'호크아이'},
+    {char:'권권K',    class:'기상술사'},
+    {char:'아르게테', class:'건슬링어'},
   ]},
   {name:'4파티', members:[
-    {char:'찰싹헤살', class:'도화가',    ilvl:1821.71},
-    {char:'아테르바', class:'발키리',    ilvl:2494.15},
-    {char:'권권C',    class:'서머너',    ilvl:2646.52},
-    {char:'공강사냥꾼', class:'데빌헌터',ilvl:2002.46},
+    {char:'찰싹헤살', class:'도화가'},
+    {char:'아테르바', class:'발키리'},
+    {char:'권권C',    class:'서머너'},
+    {char:'공강사냥꾼', class:'데빌헌터'},
   ]},
   {name:'5파티', members:[
-    {char:'빼약봄',   class:'도화가',    ilvl:2210.81},
-    {char:'탱카누나', class:'가디언나이트', ilvl:2630.36},
-    {char:'리파르테', class:'블레이드',  ilvl:2396.25},
-    {char:'공각수',   class:'브레이커',  ilvl:1247.63},
+    {char:'빼약봄',   class:'도화가'},
+    {char:'탱카누나', class:'가디언나이트'},
+    {char:'리파르테', class:'블레이드'},
+    {char:'공각수',   class:'브레이커'},
   ]},
   {name:'노노노 8인', members:[
-    {char:'꽃닢봄',   class:'바드',      ilvl:2451.17},
-    {char:'서격헤살', class:'발키리',    ilvl:1946.48},
-    {char:'권권T',    class:'소울이터',  ilvl:2900.17},
-    {char:'아사르테', class:'기상술사',  ilvl:2474.71},
-    {char:'손님은왕짐은황제', class:'아르카나', ilvl:3231.16},
-    {char:'굥대장',   class:'버서커',    ilvl:2960.44},
-    {char:'밍상쿤',   class:'블레이드',  ilvl:2393.62},
-    {char:'권권T2',   class:'소울이터',  ilvl:2421.73},
+    // F열 4명
+    {char:'꽃닢봄',   class:'바드'},
+    {char:'서격헤살', class:'발키리'},
+    {char:'아사르테', class:'기상술사'},
+    {char:'굥대장',   class:'버서커'},
+    // G열 4명
+    {char:'헤에살',     class:'홀리나이트'},
+    {char:'권권T',    class:'소울이터'},
+    {char:'손님은왕짐은황제', class:'아르카나'},
+    {char:'밍상쿤',   class:'블레이드'},
   ]},
 ];}
 
