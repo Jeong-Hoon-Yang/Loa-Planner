@@ -438,8 +438,8 @@ let GAS = '', members = [], votes = [], parties = [], weekOff = 0, psWeekOff = 0
 // raidCalendar: { 'YYYY-MM-DD': [ { partyIdx, time } ] }
 let raidCalendar = {};
 const DN = ['수','목','금','토','일','월','화'];
-const SUPP = new Set(['바드','홀리나이트','도화가','발키리']);
-const TANK = new Set([]);
+const SUPP = new Set(['바드','홀리나이트','도화가']);
+const TANK = new Set(['워로드','가디언나이트','인파이터']);
 const role = c => SUPP.has(c)?'서포터':TANK.has(c)?'탱커':'딜러';
 const roleIcon = r => r==='서포터'?'💚':r==='탱커'?'🛡️':'⚔️';
 const roleBg = r => r==='서포터'?'rgba(0,212,170,.15)':r==='탱커'?'rgba(79,124,255,.15)':'rgba(255,107,53,.15)';
@@ -476,8 +476,10 @@ async function get(action) {
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const d = await r.json(); if (d.error) throw new Error(d.error); return d;
 }
-async function post(body) {
-  const r = await fetch(GAS, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+// 저장도 GET으로 처리 (GAS CORS 제약 때문에 POST 불가)
+async function save(action, data) {
+  const encoded = encodeURIComponent(JSON.stringify(data));
+  const r = await fetch(`${GAS}?action=${action}&data=${encoded}`);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const d = await r.json(); if (d.error) throw new Error(d.error); return d;
 }
@@ -607,7 +609,7 @@ async function submitVote(){
   renderSchedule();toast(`${nick}님 일정 반영됐어요`,'success');
   if(isDemo){toast('데모 모드: 시트엔 저장 안 돼요','warn');return;}
   const btn=document.getElementById('vsub');btn.disabled=true;
-  try{await post({action:'saveVote',nick,weekKey:wk,days:arr,memo});toast('시트에 저장 완료 ✓','success');}
+  try{await save('saveVote',{nick,weekKey:wk,days:arr,memo});toast('시트에 저장 완료 ✓','success');}
   catch(e){toast('시트 저장 실패: '+e.message,'error');}
   finally{btn.disabled=false;}
 }
@@ -908,7 +910,7 @@ async function saveRcRemote(dateKey, entries) {
     return;
   }
   try {
-    await post({ action: 'saveRaidCalendar', dateKey, entries });
+    await save('saveRaidCalendar', { dateKey, entries });
     toast('레이드 일정 시트에 저장 완료 ✓', 'success');
   } catch(e) {
     toast('시트 저장 실패 (로컬엔 저장됨): ' + e.message, 'warn');
@@ -1008,7 +1010,7 @@ function demoParties(){return [
     {char:'아사르테', class:'기상술사'},
     {char:'굥대장',   class:'버서커'},
     // G열 4명
-    {char:'헤에살',     class:'홀리나이트'},
+    {char:'홀나헤살',     class:'홀리나이트'},
     {char:'권권T',    class:'소울이터'},
     {char:'손님은왕짐은황제', class:'아르카나'},
     {char:'밍상쿤',   class:'블레이드'},
