@@ -607,34 +607,25 @@ function changeWeek(d){weekOff+=d;renderSchedule();}
 let veState = {};
 
 function renderSchedule(){
-  const days=weekDays(), wk=wKey(days), total=Math.max(members.length,1);
+  const days=weekDays(), wk=wKey(days);
   document.getElementById('wlabel').textContent=`${days[0].getMonth()+1}/${days[0].getDate()} ~ ${days[6].getMonth()+1}/${days[6].getDate()}`;
   const wv=votes.filter(v=>v['기준주차']===wk);
 
-  // 주간 현황 그리드
-  document.getElementById('sg').innerHTML=days.map((d,i)=>{
-    const voters=wv.filter(v=>v[DN[i]]==='✓').map(v=>v['닉네임']);
-    const pct=Math.round(voters.length/total*100);
-    const sat=d.getDay()===6,sun=d.getDay()===0;
-    return `<div class="dcol"><div class="dhead"><div class="dname ${sat?'sat':''} ${sun?'sun':''}">${DN[i]}</div><div class="ddate">${d.getMonth()+1}/${d.getDate()}</div></div>
-      <div class="dcnt">${voters.length}명</div><div class="vbar-w"><div class="vbar" style="width:${pct}%"></div></div>
-      <div class="vlist">${voters.map(n=>`<span class="vchip2">${n}</span>`).join('')}</div></div>`;
-  }).join('');
-
-  // 편집 매트릭스 초기화 (현재 투표 데이터 기반)
+  // 편집 매트릭스 상태 초기화 (현재 투표 데이터 기반)
   veState = {};
   members.forEach(m => {
     const v = wv.find(v => v['닉네임'] === m.name);
     veState[m.name] = DN.map(d => v ? v[d]==='✓' : false);
   });
 
+  refreshSgrid();
   renderVeTable(days);
 }
 
 function renderVeTable(days) {
   const table = document.getElementById('veTable');
   if (!table) return;
-  if (!members.length) { table.innerHTML = ''; return; }
+  if (!members.length) { table.innerHTML = '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--text3);font-size:12px">데이터를 불러오면 표시돼요</td></tr>'; return; }
 
   const dayHeaders = days.map((d,i) => {
     const sat=d.getDay()===6, sun=d.getDay()===0;
@@ -644,18 +635,18 @@ function renderVeTable(days) {
     </th>`;
   }).join('');
 
-  const memberRows = members.map(m => {
+  const memberRows = members.map((m, mi) => {
     const r = role(m.chars[0]?.class || '');
     const cells = DN.map((_, i) => {
       const on = veState[m.name]?.[i] ?? false;
-      return `<td class="ve-cell" onclick="veToggle('${m.name}',${i})">
+      return `<td class="ve-cell" data-mi="${mi}" data-di="${i}">
         <div class="ve-cell-inner">
           <div class="${on?'ve-on':'ve-off'}">${on?'✓':'✕'}</div>
         </div>
       </td>`;
     }).join('');
 
-    return `<tr>
+    return `<tr data-mi="${mi}">
       <td>
         <div class="ve-member-cell">
           <div class="ps-avatar" style="background:${roleBg(r)}">${roleIcon(r)}</div>
@@ -667,7 +658,7 @@ function renderVeTable(days) {
       </td>
       ${cells}
       <td class="ve-save-cell">
-        <button class="ve-save-btn" id="vebtn-${m.name}" onclick="submitVoteFor('${m.name}')">저장</button>
+        <button class="ve-save-btn" data-mi="${mi}">저장</button>
       </td>
     </tr>`;
   }).join('');
@@ -681,55 +672,63 @@ function renderVeTable(days) {
       </tr>
     </thead>
     <tbody>${memberRows}</tbody>`;
-}
 
-function veToggle(nick, dayIdx) {
-  if (!veState[nick]) veState[nick] = Array(7).fill(false);
-  veState[nick][dayIdx] = !veState[nick][dayIdx];
-  // 해당 셀만 업데이트
-  const days = weekDays();
-  const td = document.querySelectorAll(`#veTable tbody tr`);
-  members.forEach((m, mi) => {
-    if (m.name !== nick) return;
-    const cells = td[mi]?.querySelectorAll('.ve-cell');
-    if (!cells) return;
-    DN.forEach((_, i) => {
-      const on = veState[nick][i];
-      const inner = cells[i]?.querySelector('.ve-cell-inner');
-      if (inner) inner.innerHTML = `<div class="${on?'ve-on':'ve-off'}">${on?'✓':'✕'}</div>`;
-    });
+  // 이벤트 위임 - 셀 토글
+  table.querySelector('tbody').addEventListener('click', e => {
+    const cell = e.target.closest('.ve-cell');
+    const btn  = e.target.closest('.ve-save-btn');
+    if (cell) {
+      const mi = parseInt(cell.dataset.mi), di = parseInt(cell.dataset.di);
+      const nick = members[mi]?.name;
+      if (!nick) return;
+      if (!veState[nick]) veState[nick] = Array(7).fill(false);
+      veState[nick][di] = !veState[nick][di];
+      const on = veState[nick][di];
+      cell.querySelector('.ve-cell-inner').innerHTML = `<div class="${on?'ve-on':'ve-off'}">${on?'✓':'✕'}</div>`;
+      // 현황 그리드 즉시 반영
+      refreshSgrid();
+    }
+    if (btn) {
+      const mi = parseInt(btn.dataset.mi);
+      const nick = members[mi]?.name;
+      if (nick) submitVoteFor(nick, btn);
+    }
   });
 }
 
-async function submitVoteFor(nick) {
+function refreshSgrid() {
+  const days = weekDays(), wk = wKey(days), total = Math.max(members.length, 1);
+  const wv = votes.filter(v => v['기준주차'] === wk);
+  document.getElementById('sg').innerHTML = days.map((d,i) => {
+    const voters = wv.filter(v => v[DN[i]] === '✓').map(v => v['닉네임']);
+    const pct = Math.round(voters.length / total * 100);
+    const sat = d.getDay()===6, sun = d.getDay()===0;
+    return `<div class="dcol"><div class="dhead"><div class="dname ${sat?'sat':''} ${sun?'sun':''}">${DN[i]}</div><div class="ddate">${d.getMonth()+1}/${d.getDate()}</div></div>
+      <div class="dcnt">${voters.length}명</div><div class="vbar-w"><div class="vbar" style="width:${pct}%"></div></div>
+      <div class="vlist">${voters.map(n=>`<span class="vchip2">${n}</span>`).join('')}</div></div>`;
+  }).join('');
+}
+
+function veToggle(){ /* 이벤트 위임 방식으로 대체됨 */ }
+
+async function submitVoteFor(nick, btn) {
   const days = weekDays(), wk = wKey(days);
   const arr = veState[nick] || Array(7).fill(false);
   const row = {'닉네임':nick,'기준주차':wk};
   DN.forEach((d,i) => { row[d] = arr[i]?'✓':''; });
   const ex = votes.find(v=>v['닉네임']===nick&&v['기준주차']===wk);
   if(ex) Object.assign(ex,row); else votes.push(row);
-  // 현황 그리드 즉시 갱신
-  const wv=votes.filter(v=>v['기준주차']===wk);
-  const total=Math.max(members.length,1);
-  document.getElementById('sg').innerHTML=days.map((d,i)=>{
-    const voters=wv.filter(v=>v[DN[i]]==='✓').map(v=>v['닉네임']);
-    const pct=Math.round(voters.length/total*100);
-    const sat=d.getDay()===6,sun=d.getDay()===0;
-    return `<div class="dcol"><div class="dhead"><div class="dname ${sat?'sat':''} ${sun?'sun':''}">${DN[i]}</div><div class="ddate">${d.getMonth()+1}/${d.getDate()}</div></div>
-      <div class="dcnt">${voters.length}명</div><div class="vbar-w"><div class="vbar" style="width:${pct}%"></div></div>
-      <div class="vlist">${voters.map(n=>`<span class="vchip2">${n}</span>`).join('')}</div></div>`;
-  }).join('');
+  refreshSgrid();
   if(isDemo){toast('데모 모드: 시트엔 저장 안 돼요','warn');return;}
-  const btn=document.getElementById(`vebtn-${nick}`);
   if(btn){btn.disabled=true;btn.textContent='저장중...';}
   try{
     await save('saveVote',{nick,weekKey:wk,days:arr,memo:''});
     toast(`${nick} 저장 완료 ✓`,'success');
-    if(btn){btn.textContent='저장됨 ✓';setTimeout(()=>{if(btn)btn.textContent='저장';},2000);}
+    if(btn){btn.textContent='저장됨 ✓';setTimeout(()=>{if(btn)btn.textContent='저장';btn.disabled=false;},2000);}
   } catch(e){
     toast('저장 실패: '+e.message,'error');
-    if(btn)btn.textContent='저장';
-  } finally{if(btn)btn.disabled=false;}
+    if(btn){btn.textContent='저장';btn.disabled=false;}
+  }
 }
 
 function buildVoteNicks(){ /* 매트릭스 방식으로 변경됨 - 호환성 유지 */ }
