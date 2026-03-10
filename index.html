@@ -438,8 +438,8 @@ let GAS = '', members = [], votes = [], parties = [], weekOff = 0, psWeekOff = 0
 // raidCalendar: { 'YYYY-MM-DD': [ { partyIdx, time } ] }
 let raidCalendar = {};
 const DN = ['수','목','금','토','일','월','화'];
-const SUPP = new Set(['바드','홀리나이트','도화가']);
-const TANK = new Set(['워로드','가디언나이트','인파이터']);
+const SUPP = new Set(['바드','홀리나이트','도화가','발키리']);
+const TANK = new Set([]);
 const role = c => SUPP.has(c)?'서포터':TANK.has(c)?'탱커':'딜러';
 const roleIcon = r => r==='서포터'?'💚':r==='탱커'?'🛡️':'⚔️';
 const roleBg = r => r==='서포터'?'rgba(0,212,170,.15)':r==='탱커'?'rgba(79,124,255,.15)':'rgba(255,107,53,.15)';
