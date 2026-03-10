@@ -228,7 +228,6 @@
   .rc-party-badge:hover{opacity:1 !important;filter:none !important;transform:translateX(2px);}
   .rc-badge-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
   .rc-badge-name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .rc-badge-time{font-size:10px;color:var(--text3);margin-left:auto;flex-shrink:0;}
   .rc-add-btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:4px 8px;border-radius:7px;border:1px dashed var(--border);color:var(--text3);font-size:10px;cursor:pointer;transition:all .15s;background:transparent;font-family:'Noto Sans KR',sans-serif;width:100%;}
   .rc-add-btn:hover{border-color:var(--accent);color:var(--accent);}
 
@@ -246,12 +245,6 @@
   .rc-toggle-members{font-size:11px;color:var(--text3);}
   .rc-toggle-check{width:20px;height:20px;border-radius:5px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;transition:all .2s;}
   .rc-party-toggle.active .rc-toggle-check{background:currentColor;border-color:currentColor;color:white;}
-
-  /* 시간 입력 */
-  .rc-time-row{display:flex;align-items:center;gap:8px;margin-top:6px;padding:0 2px;}
-  .rc-time-label{font-size:11px;color:var(--text3);flex-shrink:0;}
-  .rc-time-input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 9px;color:var(--text);font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:80px;transition:border-color .2s;}
-  .rc-time-input:focus{border-color:var(--accent);}
   .rc-modal-btns{display:flex;gap:8px;margin-top:20px;}
 
   /* 범례 */
@@ -791,7 +784,7 @@ function rcChangeWeek(dir) {
 function renderRaidCalendar() {
   const days   = rcWeekDays();
   const today  = rcDateKey(new Date());
-  const DN_FULL= ['월','화','수','목','금','토','일'];
+  const DN_FULL= ['수','목','금','토','일','월','화'];
 
   // 주간 라벨
   document.getElementById('rcWeekLabel').textContent =
@@ -821,7 +814,6 @@ function renderRaidCalendar() {
         onclick="openRcModal('${key}',${di})">
         <div class="rc-badge-dot" style="background:${color}"></div>
         <span class="rc-badge-name" style="color:${color}">${p.name}</span>
-        ${entry.time ? `<span class="rc-badge-time">${entry.time}</span>` : ''}
       </div>`;
     }).join('');
 
@@ -846,10 +838,10 @@ function renderRaidCalendar() {
 // 편집 모달 열기
 function openRcModal(dateKey, dayIdx) {
   rcEditDate = dateKey;
-  const DN_FULL = ['월','화','수','목','금','토','일'];
+  const DN_FULL = ['수','목','금','토','일','월','화'];
   const [y,m,d] = dateKey.split('-');
   document.getElementById('rcModalTitle').textContent = `${parseInt(m)}/${parseInt(d)} (${DN_FULL[dayIdx]}) 레이드 설정`;
-  document.getElementById('rcModalSub').textContent = '참여할 파티와 시작 시간을 설정하세요';
+  document.getElementById('rcModalSub').textContent = '참여할 파티를 선택하세요';
 
   const entries = raidCalendar[dateKey] || [];
   document.getElementById('rcModalToggles').innerHTML = parties.map((p, pi) => {
@@ -864,10 +856,6 @@ function openRcModal(dateKey, dayIdx) {
       <span class="rc-toggle-name" style="color:${on?color:'var(--text)'}">${p.name}</span>
       <span class="rc-toggle-members">${p.members.length}인</span>
       <div class="rc-toggle-check" style="${on?`background:${color};border-color:${color};color:white`:''}">${on?'✓':''}</div>
-    </div>
-    <div class="rc-time-row" id="rctime${pi}" style="${on?'':'display:none'}">
-      <span class="rc-time-label">시작 시간</span>
-      <input class="rc-time-input" type="time" id="rcti${pi}" value="${entry?.time||'21:00'}" placeholder="21:00">
     </div>`;
   }).join('');
 
@@ -876,7 +864,6 @@ function openRcModal(dateKey, dayIdx) {
 
 function toggleRcParty(pi) {
   const toggle = document.getElementById(`rct${pi}`);
-  const timeRow = document.getElementById(`rctime${pi}`);
   const on = toggle.classList.toggle('active');
   const color = RC_COLORS[pi] || '#888';
   const bg    = RC_COLORS_BG[pi] || 'rgba(255,255,255,.06)';
@@ -886,13 +873,11 @@ function toggleRcParty(pi) {
     toggle.querySelector('.rc-toggle-name').style.color = color;
     toggle.querySelector('.rc-toggle-check').style.cssText = `background:${color};border-color:${color};color:white`;
     toggle.querySelector('.rc-toggle-check').textContent = '✓';
-    timeRow.style.display = 'flex';
   } else {
     toggle.style.cssText = '';
     toggle.querySelector('.rc-toggle-name').style.color = '';
     toggle.querySelector('.rc-toggle-check').style.cssText = '';
     toggle.querySelector('.rc-toggle-check').textContent = '';
-    timeRow.style.display = 'none';
   }
 }
 
@@ -902,8 +887,7 @@ function saveRcDay() {
   parties.forEach((_, pi) => {
     const toggle = document.getElementById(`rct${pi}`);
     if (toggle && toggle.classList.contains('active')) {
-      const timeInput = document.getElementById(`rcti${pi}`);
-      entries.push({ partyIdx: pi, time: timeInput?.value || '' });
+      entries.push({ partyIdx: pi });
     }
   });
   if (entries.length) raidCalendar[rcEditDate] = entries;
@@ -1025,7 +1009,7 @@ function demoParties(){return [
     {char:'아사르테', class:'기상술사'},
     {char:'굥대장',   class:'버서커'},
     // G열 4명
-    {char:'기사헤',     class:'홀리나이트'},
+    {char:'기사헤살',     class:'홀리나이트'},
     {char:'권권T',    class:'소울이터'},
     {char:'손님은왕짐은황제', class:'아르카나'},
     {char:'밍상쿤',   class:'블레이드'},
