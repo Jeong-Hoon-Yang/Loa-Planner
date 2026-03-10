@@ -437,7 +437,7 @@
 let GAS = '', members = [], votes = [], parties = [], weekOff = 0, psWeekOff = 0, rcWeekOff = 0, selParty = 0, selDays = new Set(), isDemo = false;
 // raidCalendar: { 'YYYY-MM-DD': [ { partyIdx, time } ] }
 let raidCalendar = {};
-const DN = ['월','화','수','목','금','토','일'];
+const DN = ['수','목','금','토','일','월','화'];
 const SUPP = new Set(['바드','홀리나이트','도화가']);
 const TANK = new Set(['워로드','가디언나이트','인파이터']);
 const role = c => SUPP.has(c)?'서포터':TANK.has(c)?'탱커':'딜러';
@@ -540,10 +540,9 @@ function renderParties() {
         <div class="pm-avatar" style="background:${roleBg(r)}">${roleIcon(r)}</div>
         <div class="pm-info">
           <div class="pm-char">${m.char}</div>
-          <div class="pm-user">${m.user}</div>
+          <div class="pm-cls ctag ${r}" style="display:inline-block;margin-top:2px">${m.class}</div>
         </div>
         <div class="pm-right">
-          <div class="pm-cls ctag ${r}">${m.class}</div>
           <div class="pm-ilvl">${m.ilvl ? m.ilvl.toFixed(2) : ''}</div>
         </div>
       </div>`;
@@ -561,7 +560,7 @@ function renderParties() {
 // ── TAB2 ──
 function weekDays(){
   const n=new Date(),m=new Date(n);
-  m.setDate(n.getDate()-((n.getDay()||7)-1)+weekOff*7);
+  m.setDate(n.getDate()-((n.getDay()+4)%7)+weekOff*7);
   return Array.from({length:7},(_,i)=>{const d=new Date(m);d.setDate(m.getDate()+i);return d;});
 }
 function wKey(days){const d=days[0];return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
@@ -607,7 +606,7 @@ const PS_COLORS = ['#4f7cff','#00d4aa','#f5c842','#ff6b35','#ff4466','#9b59b6'];
 
 function psWeekDays() {
   const n = new Date(), m = new Date(n);
-  m.setDate(n.getDate() - ((n.getDay()||7) - 1) + psWeekOff * 7);
+  m.setDate(n.getDate() - ((n.getDay()+4)%7) + psWeekOff * 7);
   return Array.from({length:7}, (_,i) => { const d=new Date(m); d.setDate(m.getDate()+i); return d; });
 }
 
@@ -644,15 +643,12 @@ function renderPartySchedule() {
   const color   = PS_COLORS[selParty] || 'var(--accent)';
   const wvotes  = votes.filter(v => v['기준주차'] === wk);
 
-  // 파티 멤버의 유저명 목록 (중복 제거)
-  const memberUsers = [...new Set(party.members.map(m => m.user))];
-
-  // 각 멤버별 요일 투표 데이터 매핑 (유저명 기준)
-  // votes의 닉네임이 유저명과 일치한다고 가정
-  const voteMap = {}; // { 유저명: { 월:bool, 화:bool, ... } }
-  memberUsers.forEach(u => {
-    const v = wvotes.find(v => v['닉네임'] === u);
-    voteMap[u] = v || null;
+  // 캐릭명 기준으로 투표 데이터 매핑 (닉네임과 캐릭명이 같을 수 있음)
+  // 투표 닉네임이 캐릭명과 일치하는 경우 + 멤버 목록에 있는 닉네임 전체 검색
+  const voteMap = {}; // { char: voteRow | null }
+  party.members.forEach(m => {
+    const v = wvotes.find(v => v['닉네임'] === m.char);
+    voteMap[m.char] = v || null;
   });
 
   // thead
@@ -664,26 +660,19 @@ function renderPartySchedule() {
     </th>`;
   }).join('');
 
-  // tbody rows - 멤버별 (파티 내 캐릭 기준, 유저 중복 표시 방지)
-  const seenUsers = new Set();
+  // tbody rows - 멤버별
   const memberRows = party.members.map((m, mi) => {
-    const isDup = seenUsers.has(m.user);
-    seenUsers.add(m.user);
-
     const r = role(m.class);
-    const voteRow = voteMap[m.user];
+    const voteRow = voteMap[m.char];
     const isLeader = mi === 0;
 
     const cells = days.map((_,i) => {
       if (!voteRow) {
-        // 미등록
         return `<td class="ps-cell"><div class="ps-cell-inner"><div class="ps-none">-</div></div></td>`;
       }
       const ok = voteRow[DN[i]] === '✓';
       return `<td class="ps-cell"><div class="ps-cell-inner">
-        ${ok
-          ? `<div class="ps-ok">✓</div>`
-          : `<div class="ps-no">✕</div>`}
+        ${ok ? `<div class="ps-ok">✓</div>` : `<div class="ps-no">✕</div>`}
       </div></td>`;
     }).join('');
 
@@ -692,8 +681,8 @@ function renderPartySchedule() {
         <div class="ps-member-cell" style="${isLeader?`border-left:3px solid ${color};padding-left:11px`:''}">
           <div class="ps-avatar" style="background:${roleBg(r)}">${roleIcon(r)}</div>
           <div class="ps-minfo">
-            <div class="ps-mname">${m.char}${isDup?' <span style="font-size:9px;color:var(--text3)">(동일유저)</span>':''}</div>
-            <div class="ps-muser">${m.user}${isLeader?' 👑':''} · <span class="ctag ${r}" style="font-size:9px;padding:1px 5px">${m.class}</span></div>
+            <div class="ps-mname">${m.char}${isLeader?' 👑':''}</div>
+            <div class="ps-muser"><span class="ctag ${r}" style="font-size:9px;padding:1px 5px">${m.class}</span>${m.ilvl ? ` · ${m.ilvl.toFixed(2)}` : ''}</div>
           </div>
         </div>
       </td>
@@ -701,15 +690,14 @@ function renderPartySchedule() {
     </tr>`;
   }).join('');
 
-  // 요약 행 - 날짜별 참가 가능 인원 수
-  const uniqueUsers = [...new Set(party.members.map(m => m.user))];
-  const totalUniq = uniqueUsers.length;
+  // 요약 행
+  const total = party.members.length;
   const sumCells = days.map((_,i) => {
-    const cnt = uniqueUsers.filter(u => {
-      const v = voteMap[u];
+    const cnt = party.members.filter(m => {
+      const v = voteMap[m.char];
       return v && v[DN[i]] === '✓';
     }).length;
-    const pct = totalUniq > 0 ? Math.round(cnt/totalUniq*100) : 0;
+    const pct = total > 0 ? Math.round(cnt/total*100) : 0;
     const numCls = pct >= 80 ? 'full' : pct >= 50 ? 'mid' : 'low';
     const barColor = pct >= 80 ? 'var(--accent3)' : pct >= 50 ? 'var(--gold)' : 'var(--danger)';
     return `<td class="ps-cell">
@@ -737,12 +725,12 @@ function renderPartySchedule() {
     </tbody>`;
 
   // 미등록 멤버 표시
-  const unvoted = uniqueUsers.filter(u => !voteMap[u]);
+  const unvoted = party.members.filter(m => !voteMap[m.char]);
   const uvEl = document.getElementById('psUnvoted');
   if (unvoted.length) {
     uvEl.style.display = 'block';
     document.getElementById('psUnvotedList').innerHTML =
-      unvoted.map(u => `<span class="unvoted-chip">⚠ ${u}</span>`).join('');
+      unvoted.map(m => `<span class="unvoted-chip">⚠ ${m.char}</span>`).join('');
   } else {
     uvEl.style.display = 'none';
   }
@@ -758,7 +746,7 @@ let rcEditDate = null; // 현재 편집 중인 날짜 키
 
 function rcWeekDays() {
   const n = new Date(), m = new Date(n);
-  m.setDate(n.getDate() - ((n.getDay()||7) - 1) + rcWeekOff * 7);
+  m.setDate(n.getDate() - ((n.getDay()+4)%7) + rcWeekOff * 7);
   return Array.from({length:7}, (_,i) => { const d=new Date(m); d.setDate(m.getDate()+i); return d; });
 }
 
@@ -960,64 +948,56 @@ function demoMembers(){return [
 function demoVotes(){
   const days=weekDays(), wk=wKey(days);
   return [
-    {'닉네임':'꽃닢봄','기준주차':wk,'월':'✓','화':'','수':'✓','목':'','금':'✓','토':'','일':''},
-    {'닉네임':'굥격슈','기준주차':wk,'월':'✓','화':'✓','수':'✓','목':'','금':'','토':'✓','일':''},
-    {'닉네임':'낳인가요낫인가요','기준주차':wk,'월':'','화':'✓','수':'✓','목':'✓','금':'✓','토':'','일':''},
-    {'닉네임':'권권a','기준주차':wk,'월':'✓','화':'','수':'','목':'✓','금':'','토':'✓','일':''},
-    {'닉네임':'통통헤살','기준주차':wk,'월':'','화':'✓','수':'✓','목':'','금':'✓','토':'','일':''},
-    {'닉네임':'밍상쿤','기준주차':wk,'월':'✓','화':'','수':'✓','목':'','금':'','토':'','일':'✓'},
-    {'닉네임':'아브르테','기준주차':wk,'월':'','화':'✓','수':'','목':'','금':'✓','토':'✓','일':''},
-    {'닉네임':'탱커형','기준주차':wk,'월':'','화':'','수':'✓','목':'✓','금':'✓','토':'','일':''},
+    {'닉네임':'꽃닢봄','기준주차':wk,'수':'✓','목':'','금':'✓','토':'','일':'','월':'✓','화':''},
+    {'닉네임':'굥격슈','기준주차':wk,'수':'✓','목':'✓','금':'✓','토':'','일':'','월':'','화':'✓'},
+    {'닉네임':'낳인가요낫인가요','기준주차':wk,'수':'','목':'✓','금':'✓','토':'✓','일':'✓','월':'','화':''},
+    {'닉네임':'권권a','기준주차':wk,'수':'✓','목':'','금':'','토':'✓','일':'','월':'✓','화':''},
+    {'닉네임':'통통헤살','기준주차':wk,'수':'','목':'✓','금':'✓','토':'','일':'✓','월':'','화':''},
+    {'닉네임':'밍상쿤','기준주차':wk,'수':'✓','목':'','금':'✓','토':'','일':'','월':'','화':'✓'},
+    {'닉네임':'아브르테','기준주차':wk,'수':'','목':'✓','금':'','토':'✓','일':'','월':'✓','화':''},
+    {'닉네임':'탱커형','기준주차':wk,'수':'✓','목':'✓','금':'✓','토':'','일':'','월':'','화':''},
   ];
 }
 function demoParties(){return [
   {name:'1파티', members:[
-    {char:'꽃닢봄', user:'꽃닢봄', class:'바드', ilvl:2451.17},
-    {char:'공대장', user:'굥격슈', class:'버서커', ilvl:2523.77},
-    {char:'학원갈시간', user:'낳인가요낫인가요', class:'블래스터', ilvl:2404.28},
-    {char:'권권H', user:'권권a', class:'건슬링어', ilvl:2646.52},
-    {char:'통통헤살', user:'통통헤살', class:'바드', ilvl:1821.71},
-    {char:'밍상쿤', user:'밍상쿤', class:'블레이드', ilvl:2393.62},
-    {char:'아브르테', user:'아브르테', class:'리퍼', ilvl:2807.34},
+    {char:'꽃닢봄',   class:'바드',      ilvl:2451.17},
+    {char:'공대장',   class:'버서커',    ilvl:2523.77},
+    {char:'학원갈시간', class:'블래스터', ilvl:2645.89},
+    {char:'권권H',    class:'건슬링어',  ilvl:2615.38},
   ]},
   {name:'2파티', members:[
-    {char:'끼리봄', user:'꽃닢봄', class:'발키리', ilvl:2266.55},
-    {char:'굥격슈', user:'굥격슈', class:'브레이커', ilvl:5194.76},
-    {char:'손님은왕짐은황제', user:'낳인가요낫인가요', class:'아르카나', ilvl:2404.28},
-    {char:'권권C', user:'권권a', class:'서머너', ilvl:2646.51},
-    {char:'단단헤살', user:'통통헤살', class:'리퍼', ilvl:977.24},
-    {char:'밈산', user:'밍상쿤', class:'리퍼', ilvl:832.08},
-    {char:'리파르테', user:'아브르테', class:'블레이드', ilvl:1462.89},
+    {char:'끼리봄',   class:'발키리',    ilvl:2266.55},
+    {char:'공대장',   class:'버서커',    ilvl:2523.77},
+    {char:'아르게테', class:'건슬링어',  ilvl:2370.00},
+    {char:'아르게태', class:'아르케타입',ilvl:2370.00},
   ]},
   {name:'3파티', members:[
-    {char:'꽃닢붐', user:'꽃닢봄', class:'바드', ilvl:2447.05},
-    {char:'민상', user:'민상', class:'기공사', ilvl:1134.24},
-    {char:'님상', user:'밍상쿤', class:'호크아이', ilvl:2043.24},
-    {char:'권권K', user:'권권a', class:'기상술사', ilvl:2899.81},
-    {char:'아르게테', user:'아브르테', class:'건슬링어', ilvl:2453.38},
+    {char:'꽃닢붐',   class:'바드',      ilvl:2482.44},
+    {char:'님상',     class:'호크아이',  ilvl:1981.54},
+    {char:'권권K',    class:'기상술사',  ilvl:2899.81},
+    {char:'아르게테', class:'건슬링어',  ilvl:2425.36},
   ]},
   {name:'4파티', members:[
-    {char:'찰싹헤살', user:'통통헤살', class:'도화가', ilvl:1689.81},
-    {char:'아테르바', user:'아브르테', class:'발키리', ilvl:2396.25},
-    {char:'권권C', user:'권권a', class:'서머너', ilvl:2646.52},
-    {char:'공강사냥꾼', user:'굥격슈', class:'데빌헌터', ilvl:2002.46},
-    {char:'뭐라하지말아줘', user:'낳인가요낫인가요', class:'환수사', ilvl:2525.95},
+    {char:'찰싹헤살', class:'도화가',    ilvl:1821.71},
+    {char:'아테르바', class:'발키리',    ilvl:2494.15},
+    {char:'권권C',    class:'서머너',    ilvl:2646.52},
+    {char:'공강사냥꾼', class:'데빌헌터',ilvl:2002.46},
   ]},
   {name:'5파티', members:[
-    {char:'권권', user:'권권a', class:'아르카나', ilvl:0},
-    {char:'빼약봄', user:'꽃닢봄', class:'도화가', ilvl:2175.3},
-    {char:'탱카누나', user:'탱커형', class:'가디언나이트', ilvl:2630.36},
-    {char:'리파르테', user:'아브르테', class:'블레이드', ilvl:2396.25},
-    {char:'공각수', user:'탱커형', class:'브레이커', ilvl:1247.63},
-    {char:'밍상', user:'밍상쿤', class:'건슬링어', ilvl:1439.52},
+    {char:'빼약봄',   class:'도화가',    ilvl:2210.81},
+    {char:'탱카누나', class:'가디언나이트', ilvl:2630.36},
+    {char:'리파르테', class:'블레이드',  ilvl:2396.25},
+    {char:'공각수',   class:'브레이커',  ilvl:1247.63},
   ]},
   {name:'노노노 8인', members:[
-    {char:'서격헤살', user:'통통헤살', class:'발키리', ilvl:965.95},
-    {char:'권권T', user:'권권a', class:'소울이터', ilvl:2421.73},
-    {char:'아사르테', user:'아브르테', class:'기상술사', ilvl:1462.89},
-    {char:'손님은왕짐은황제', user:'낳인가요낫인가요', class:'아르카나', ilvl:2525.95},
-    {char:'굥대장', user:'굥격슈', class:'버서커', ilvl:2819.24},
-    {char:'권권T', user:'권권a', class:'소울이터', ilvl:2421.73},
+    {char:'꽃닢봄',   class:'바드',      ilvl:2451.17},
+    {char:'서격헤살', class:'발키리',    ilvl:1946.48},
+    {char:'권권T',    class:'소울이터',  ilvl:2900.17},
+    {char:'아사르테', class:'기상술사',  ilvl:2474.71},
+    {char:'손님은왕짐은황제', class:'아르카나', ilvl:3231.16},
+    {char:'굥대장',   class:'버서커',    ilvl:2960.44},
+    {char:'밍상쿤',   class:'블레이드',  ilvl:2393.62},
+    {char:'권권T2',   class:'소울이터',  ilvl:2421.73},
   ]},
 ];}
 
