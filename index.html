@@ -438,17 +438,26 @@ let GAS = '', members = [], votes = [], parties = [], weekOff = 0, psWeekOff = 0
 // raidCalendar: { 'YYYY-MM-DD': [ { partyIdx, time } ] }
 let raidCalendar = {};
 const DN = ['수','목','금','토','일','월','화'];
-const SUPP = new Set(['바드','홀리나이트','도화가']);
-const TANK = new Set(['워로드','가디언나이트','인파이터']);
-const role = c => SUPP.has(c)?'서포터':TANK.has(c)?'탱커':'딜러';
-const roleIcon = r => r==='서포터'?'💚':r==='탱커'?'🛡️':'⚔️';
-const roleBg = r => r==='서포터'?'rgba(0,212,170,.15)':r==='탱커'?'rgba(79,124,255,.15)':'rgba(255,107,53,.15)';
+const SUPP = new Set(['바드','홀리나이트','도화가','발키리']);
+const role = c => SUPP.has(c)?'서포터':'딜러';
+const roleIcon = r => r==='서포터'?'💚':'⚔️';
+const roleBg = r => r==='서포터'?'rgba(0,212,170,.15)':'rgba(255,107,53,.15)';
 
 // 캐릭명으로 캐릭터 현황 탭에서 아이템 레벨 조회
 function getIlvlByChar(charName) {
   for (const m of members) {
     for (const c of m.chars) {
       if (c.name === charName) return c.ilvl;
+    }
+  }
+  return null;
+}
+
+// 캐릭명으로 닉네임(멤버명) 역조회
+function getMemberByChar(charName) {
+  for (const m of members) {
+    for (const c of m.chars) {
+      if (c.name === charName) return m.name;
     }
   }
   return null;
@@ -656,11 +665,12 @@ function renderPartySchedule() {
   const color   = PS_COLORS[selParty] || 'var(--accent)';
   const wvotes  = votes.filter(v => v['기준주차'] === wk);
 
-  // 캐릭명 기준으로 투표 데이터 매핑 (닉네임과 캐릭명이 같을 수 있음)
-  // 투표 닉네임이 캐릭명과 일치하는 경우 + 멤버 목록에 있는 닉네임 전체 검색
+  // 캐릭명 → 닉네임 역매핑 후 투표 조회
+  // 캐릭터 현황에 없으면 캐릭명 자체로 닉네임 폴백
   const voteMap = {}; // { char: voteRow | null }
   party.members.forEach(m => {
-    const v = wvotes.find(v => v['닉네임'] === m.char);
+    const nick = getMemberByChar(m.char) || m.char;
+    const v = wvotes.find(v => v['닉네임'] === nick);
     voteMap[m.char] = v || null;
   });
 
@@ -950,14 +960,14 @@ function toast(msg,type='info'){
 
 // ── DEMO DATA ──
 function demoMembers(){return [
-  {name:'꽃닢봄',chars:[{name:'꽃닢봄',class:'바드',ilvl:1770.83,role:'서포터'},{name:'꽃닢붐',class:'바드',ilvl:1710.17,role:'서포터'},{name:'끼리봄',class:'발키리',ilvl:1710.00,role:'딜러'},{name:'삐약봄',class:'도화가',ilvl:1710.00,role:'서포터'},{name:'곰닢봄',class:'환수사',ilvl:1686.67,role:'딜러'}]},
-  {name:'굥격슈',chars:[{name:'굥격슈',class:'브레이커',ilvl:1770.00,role:'딜러'},{name:'꾱룡',class:'브레이커',ilvl:1711.67,role:'딜러'},{name:'굥대장',class:'버서커',ilvl:1710.83,role:'딜러'},{name:'굥격수',class:'스트라이커',ilvl:1710.00,role:'딜러'},{name:'굥탱이',class:'워로드',ilvl:1640.17,role:'탱커'}]},
+  {name:'꽃닢봄',chars:[{name:'꽃닢봄',class:'바드',ilvl:1770.83,role:'서포터'},{name:'꽃닢붐',class:'바드',ilvl:1710.17,role:'서포터'},{name:'끼리봄',class:'발키리',ilvl:1710.00,role:'서포터'},{name:'삐약봄',class:'도화가',ilvl:1710.00,role:'서포터'},{name:'곰닢봄',class:'환수사',ilvl:1686.67,role:'딜러'}]},
+  {name:'굥격슈',chars:[{name:'굥격슈',class:'브레이커',ilvl:1770.00,role:'딜러'},{name:'꾱룡',class:'브레이커',ilvl:1711.67,role:'딜러'},{name:'굥대장',class:'버서커',ilvl:1710.83,role:'딜러'},{name:'굥격수',class:'스트라이커',ilvl:1710.00,role:'딜러'},{name:'굥탱이',class:'워로드',ilvl:1640.17,role:'딜러'}]},
   {name:'낳인가요낫인가요',chars:[{name:'낳인가요낫인가요',class:'소울이터',ilvl:1773.33,role:'딜러'},{name:'죽어서자라',class:'홀리나이트',ilvl:1715.00,role:'서포터'},{name:'손님은왕짐은황제',class:'아르카나',ilvl:1715.00,role:'딜러'},{name:'학원갈시간',class:'블래스터',ilvl:1712.50,role:'딜러'}]},
   {name:'권권a',chars:[{name:'권권A',class:'아르카나',ilvl:1782.50,role:'딜러'},{name:'권권K',class:'기상술사',ilvl:1717.67,role:'딜러'},{name:'권권C',class:'서머너',ilvl:1714.17,role:'딜러'},{name:'권권I',class:'도화가',ilvl:1711.67,role:'서포터'},{name:'권권B',class:'호크아이',ilvl:1651.67,role:'딜러'}]},
   {name:'통통헤살',chars:[{name:'통통헤살',class:'바드',ilvl:1767.50,role:'서포터'},{name:'단단헤살',class:'리퍼',ilvl:1710.83,role:'딜러'},{name:'찰싹헤살',class:'도화가',ilvl:1710.00,role:'서포터'},{name:'춉춉헤살',class:'아르카나',ilvl:1710.00,role:'딜러'}]},
   {name:'밍상쿤',chars:[{name:'밍상쿤',class:'블레이드',ilvl:1754.17,role:'딜러'},{name:'밈산',class:'리퍼',ilvl:1710.00,role:'딜러'},{name:'님상',class:'호크아이',ilvl:1710.00,role:'딜러'},{name:'밍슬이',class:'기공사',ilvl:1710.00,role:'딜러'}]},
   {name:'아브르테',chars:[{name:'아브르테',class:'리퍼',ilvl:1770.83,role:'딜러'},{name:'리파르테',class:'블레이드',ilvl:1715.00,role:'딜러'},{name:'아르호테',class:'홀리나이트',ilvl:1685.83,role:'서포터'},{name:'아데르테',class:'데모닉',ilvl:1668.33,role:'딜러'}]},
-  {name:'탱커형',chars:[{name:'탱커형',class:'워로드',ilvl:1760.00,role:'탱커'},{name:'탱커누나',class:'가디언나이트',ilvl:1711.17,role:'탱커'},{name:'워황찬양',class:'워로드',ilvl:1710.00,role:'탱커'},{name:'딴딴형',class:'워로드',ilvl:1685.00,role:'탱커'}]},
+  {name:'탱커형',chars:[{name:'탱커형',class:'워로드',ilvl:1760.00,role:'딜러'},{name:'탱커누나',class:'가디언나이트',ilvl:1711.17,role:'딜러'},{name:'워황찬양',class:'워로드',ilvl:1710.00,role:'딜러'},{name:'딴딴형',class:'워로드',ilvl:1685.00,role:'딜러'}]},
 ];}
 function demoVotes(){
   const days=weekDays(), wk=wKey(days);
@@ -1010,7 +1020,7 @@ function demoParties(){return [
     {char:'아사르테', class:'기상술사'},
     {char:'굥대장',   class:'버서커'},
     // G열 4명
-    {char:'홀나헤살',     class:'홀리나이트'},
+    {char:'기사헤살',     class:'홀리나이트'},
     {char:'권권T',    class:'소울이터'},
     {char:'손님은왕짐은황제', class:'아르카나'},
     {char:'밍상쿤',   class:'블레이드'},
